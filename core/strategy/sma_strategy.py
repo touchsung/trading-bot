@@ -3,8 +3,8 @@ from core.strategy import BaseStrategy
 
 
 class SMAStrategy(BaseStrategy):
-    def __init__(self):
-        super().__init__()
+    def __init__(self, budget: float):
+        super().__init__(budget)
         self.STOP_LOSS_PERCENTAGE = 0.03
         self.TAKE_PROFIT_PERCENTAGE = 0.05
 
@@ -12,7 +12,6 @@ class SMAStrategy(BaseStrategy):
         current_sma_50 = historical_data["SMA_50"].iloc[-1]
         current_sma_200 = historical_data["SMA_200"].iloc[-1]
         current_rsi = historical_data["RSI"].iloc[-1]
-
         if current_sma_50 > current_sma_200 and current_rsi > 30:
             return 1.0  # Strong buy signal
         elif current_sma_50 > current_sma_200:

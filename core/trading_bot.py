@@ -4,45 +4,85 @@ from datetime import datetime
 import pandas as pd
 
 from core.strategy import BaseStrategy
+from database.crud import DB
 
 
 class TradingBot:
-    def __init__(
-        self, data_directory="data", budget=10000, strategy: BaseStrategy = None
-    ):
+    def __init__(self, budget=50000, strategy_class=None):
+        self._db = DB()
+
         self.list_stocks = [
-            "AOT",
             "ADVANC",
-            "AEONTS",
+            "AOT",
             "AWC",
-            "BANPU",
             "BBL",
             "BDMS",
             "BEM",
             "BGRIM",
             "BH",
+            "BJC",
+            "BLA",
+            "BTS",
+            "CBG",
+            "COM7",
+            "CPALL",
+            "CPF",
+            "CPN",
+            "CRC",
+            "DELTA",
+            "DTAC",
+            "EA",
+            "EGCO",
+            "GLOBAL",
+            "GPSC",
+            "GULF",
+            "HMPRO",
+            "INTUCH",
+            "IRPC",
+            "IVL",
+            "KTB",
+            "KBANK",
+            "KTC",
+            "LH",
+            "MINT",
+            "MTC",
+            "OSP",
+            "PTT",
+            "PTTEP",
+            "PTTGC",
+            "RATCH",
+            "SAWAD",
+            "SCB",
+            "SCC",
+            "SCGP",
+            "TISCO",
+            "TMB",
+            "TOA",
+            "TOP",
+            "TRUE",
+            "TU",
+            "VGI",
         ]
-        self.data_directory = data_directory
         self.trades = {stock: [] for stock in self.list_stocks}
         self.dataframes = self._load_all_data()
         self.initial_budget = budget
         self.available_budget = budget
-        self.strategy = strategy
+        self.strategy: BaseStrategy = strategy_class(budget)
 
     def _load_all_data(self) -> Dict[str, pd.DataFrame]:
         return {stock: self._load_data(stock) for stock in self.list_stocks}
 
     def _load_data(self, stock: str) -> pd.DataFrame:
-        file_path = f"{self.data_directory}/{stock}.csv"
-        try:
-            df = pd.read_csv(file_path)
-            df["date"] = pd.to_datetime(df["date"])
-            df.set_index("date", inplace=True)
-            five_years_ago = pd.Timestamp.now() - pd.DateOffset(years=5)
-            return df[df.index >= five_years_ago]
-        except FileNotFoundError:
-            print(f"Warning: Data for stock {stock} not found at {file_path}.")
+        ohlcv_data = self._db.get_ohlcv_by_symbol(stock)
+        if not ohlcv_data:
+            print(f"Warning: No data found for stock {stock}.")
             return pd.DataFrame()
+
+        df = pd.DataFrame([vars(record) for record in ohlcv_data])
+        df["date"] = pd.to_datetime(df["date"])
+        df.set_index("date", inplace=True)
+        five_years_ago = pd.Timestamp.now() - pd.DateOffset(years=5)
+        return df[df.index >= five_years_ago]
 
     def _trading_logic(self, start_date, end_date):
         positions, entry_prices, volumes, last_trade_date = (
@@ -201,10 +241,17 @@ class TradingBot:
         )
 
     def backtest(self, start_date=None, end_date=None):
+        # Filter out empty dataframes
+        non_empty_dfs = {k: df for k, df in self.dataframes.items() if not df.empty}
+
+        if not non_empty_dfs:
+            print("No valid data found for backtesting.")
+            return
+
         if start_date is None:
-            start_date = min(df.index.min() for df in self.dataframes.values())
+            start_date = min(df.index.min() for df in non_empty_dfs.values())
         if end_date is None:
-            end_date = max(df.index.max() for df in self.dataframes.values())
+            end_date = max(df.index.max() for df in non_empty_dfs.values())
 
         self._trading_logic(start_date, end_date)
         performance = self.evaluate_performance()

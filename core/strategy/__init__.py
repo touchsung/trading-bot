@@ -4,10 +4,10 @@ import pandas as pd
 
 
 class BaseStrategy(ABC):
-    def __init__(self):
+    def __init__(self, budget: float):
         self.MIN_PRICE_THRESHOLD = 10
         self.MAX_PRICE_THRESHOLD = 1000
-        self.MAX_TRADE_SIZE = 1000
+        self.MAX_TRADE_SIZE = 0.1 * budget  # 10% of budget
 
     @abstractmethod
     def signal_buy(self, historical_data: pd.DataFrame, current_price: float) -> float:

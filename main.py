@@ -3,12 +3,9 @@ from core.trading_bot import TradingBot
 
 
 def main():
-    strategy = SMAStrategy()
-    bot = TradingBot(strategy=strategy)
-
+    bot = TradingBot(strategy_class=SMAStrategy)
     # For backtesting
     bot.backtest()
-
     # For production trading
     # bot.live_trading()
 
