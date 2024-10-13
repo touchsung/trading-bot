@@ -1,76 +1,86 @@
-# Trading Bot with SMA Strategy
+# Algorithmic Trading Bot
 
-This README explains the logic and conditions used in our trading bot, which implements a Simple Moving Average (SMA) strategy.
+This project implements an algorithmic trading bot that can perform backtesting and live trading using various strategies.
 
-## Trading Bot Logic
+## Project Structure
 
-The trading bot operates on the following principles:
+├── core/
+│ ├── strategy/
+│ │ ├── init.py
+│ │ ├── base_strategy.py
+│ │ └── sma_strategy.py
+│ └── trading_bot.py
+├── data/
+│ └── [stock_symbol].csv
+├── main.py
+└── README.md
 
-1. **Initialization**: The bot starts with a predefined budget and a list of stocks to trade.
+## Components
 
-2. **Data Processing**: For each stock, the bot processes historical price data and calculates necessary indicators.
+### TradingBot (core/trading_bot.py)
 
-3. **Trading Loop**: The bot iterates through each date in the specified date range and each stock in the list.
+The main class that handles the trading logic, data management, and execution of trades. It uses a strategy object to determine buy and sell signals.
 
-4. **Price Check**: The bot checks if the current stock price is within an appropriate range (defined by `_is_stock_price_appropriate` method).
+Key features:
 
-5. **Stop Loss**: A trailing stop loss is implemented to limit potential losses.
+- Loads and manages historical stock data
+- Implements backtesting functionality
+- Supports live trading (placeholder implementation)
+- Calculates and reports performance metrics
 
-6. **Buy and Sell Signals**: The bot uses the SMA strategy to generate buy and sell signals.
+### BaseStrategy (core/strategy/base_strategy.py)
 
-7. **Trade Execution**: Based on the signals, the bot executes buy or sell orders, considering available budget and position limits.
+An abstract base class that defines the interface for all trading strategies.
 
-8. **Logging**: All trades are logged for later analysis.
+Key methods:
 
-### Key Conditions
+- `signal_buy`: Determines buy signals
+- `signal_sell`: Determines sell signals
+- `calculate_indicators`: Computes technical indicators
+- `check_stop_loss`: Implements stop-loss logic
 
-- **Trading Frequency**: The bot waits at least 3 days between trades for the same stock.
-- **Position Sizing**: The maximum trade size is limited by `MAX_TRADE_SIZE`.
-- **Budget Management**: The bot never spends more than the available budget.
+### SMAStrategy (core/strategy/sma_strategy.py)
 
-## SMA Strategy Logic
+A concrete implementation of BaseStrategy that uses Simple Moving Averages (SMA) and Relative Strength Index (RSI) for trading decisions.
 
-The Simple Moving Average (SMA) strategy is implemented in the `SMAStrategy` class. Here are the key components:
+Key features:
 
-1. **Indicators**: The strategy uses two SMAs:
+- Implements SMA crossover strategy
+- Uses RSI for overbought/oversold conditions
+- Calculates additional indicators like MACD and ATR
 
-   - Short-term SMA (e.g., 50 days)
-   - Long-term SMA (e.g., 200 days)
+## Usage
 
-2. **Buy Signal Conditions**:
+1. Ensure you have the required data files in the `data/` directory.
+2. Modify the `main.py` file to use the desired strategy and trading mode.
+3. Run the bot using:
 
-   - The short-term SMA crosses above the long-term SMA (Golden Cross)
-   - The current price is above both SMAs
-   - The long-term SMA is trending upwards
+```bash
+python main.py
+```
 
-3. **Sell Signal Conditions**:
+## Extending the Bot
 
-   - The short-term SMA crosses below the long-term SMA (Death Cross)
-   - The current price is below both SMAs
-   - The long-term SMA is trending downwards
+To create a new trading strategy:
 
-4. **Signal Strength**: The strategy returns a signal strength (0 to 1) based on how strongly the conditions are met.
+1. Create a new file in the `core/strategy/` directory (e.g., `my_strategy.py`).
+2. Define a new class that inherits from `BaseStrategy`.
+3. Implement the required methods (`signal_buy`, `signal_sell`, `calculate_indicators`, `check_stop_loss`).
+4. Update `main.py` to use your new strategy.
 
-### Key Parameters
+## Dependencies
 
-- `short_window`: The period for the short-term SMA (default: 50)
-- `long_window`: The period for the long-term SMA (default: 200)
-- `trend_window`: The period for determining the long-term SMA trend (default: 50)
+- pandas
+- numpy (used indirectly by pandas)
 
-## Risk Management
+## Future Improvements
 
-1. **Stop Loss**: A trailing stop loss is implemented, typically set at 2 ATR (Average True Range) below the entry price.
-2. **Position Sizing**: The bot limits the size of each trade to manage risk.
-3. **Diversification**: By trading multiple stocks, the bot spreads risk across different assets.
+- Implement real-time data fetching for live trading
+- Add more sophisticated strategies
+- Improve risk management features
+- Implement portfolio optimization
+- Add unit tests and integration tests
 
-## Performance Evaluation
+## Disclaimer
 
-The bot's performance can be evaluated based on:
-
-- Total return
-- Number of trades
-- Win rate
-- Sharpe ratio
-- Maximum drawdown
-
-Remember to backtest the strategy thoroughly and optimize parameters before using it with real money.
+This trading bot is for educational purposes only. Always perform your own research and risk assessment before engaging in real trading.
