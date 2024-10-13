@@ -264,7 +264,7 @@ class TradingBot:
         print(f"ROI: {performance['roi']:.2f}%")
 
     def live_trading(self):
-        current_date = datetime.now().date()
+        current_date = datetime(2024, 10, 11).date()
 
         if not self._is_market_open(current_date):
             print(f"Market is closed on {current_date}. No trading today.")
@@ -278,7 +278,7 @@ class TradingBot:
         print(f"Real trading completed for {current_date}")
 
     def _is_market_open(self, date):
-        return date.weekday() < 5  # Assuming market is open Monday to Friday
+        return date.weekday() < 5
 
     def _update_data(self):
         print("Updating market data...")
