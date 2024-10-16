@@ -3,33 +3,40 @@ from core.strategy import BaseStrategy
 
 
 class SMAStrategy(BaseStrategy):
-    def __init__(self, budget: float):
-        super().__init__(budget)
+    def __init__(self):
+        super().__init__()
         self.STOP_LOSS_PERCENTAGE = 0.03
-        self.TAKE_PROFIT_PERCENTAGE = 0.05
+        self.TAKE_PROFIT_PERCENTAGE = 0.09
+        self.name = "SMA"
+        self.description = "Simple Moving Average Strategy"
 
-    def signal_buy(self, historical_data: pd.DataFrame, current_price: float) -> float:
+    def signal_buy(
+        self, historical_data: pd.DataFrame, current_price: float
+    ) -> tuple[float, str]:
         current_sma_50 = historical_data["SMA_50"].iloc[-1]
         current_sma_200 = historical_data["SMA_200"].iloc[-1]
         current_rsi = historical_data["RSI"].iloc[-1]
-        if current_sma_50 > current_sma_200 and current_rsi > 30:
-            return 1.0  # Strong buy signal
-        elif current_sma_50 > current_sma_200:
-            return 0.5  # Moderate buy signal
-        else:
-            return 0.0  # No buy signal
 
-    def signal_sell(self, historical_data: pd.DataFrame, current_price: float) -> float:
+        if current_sma_50 > current_sma_200 and current_rsi > 30:
+            return 1.0, "strong_buy"  # Strong buy signal
+        elif current_sma_50 > current_sma_200:
+            return 0.5, "moderate_buy"  # Moderate buy signal
+        else:
+            return 0.0, "no_buy"  # No buy signal
+
+    def signal_sell(
+        self, historical_data: pd.DataFrame, current_price: float
+    ) -> tuple[float, str]:
         current_sma_50 = historical_data["SMA_50"].iloc[-1]
         current_sma_200 = historical_data["SMA_200"].iloc[-1]
         current_rsi = historical_data["RSI"].iloc[-1]
 
         if current_sma_50 < current_sma_200 and current_rsi < 70:
-            return 1.0  # Strong sell signal
+            return 1.0, "strong_sell"  # Strong sell signal
         elif current_sma_50 < current_sma_200:
-            return 0.5  # Moderate sell signal
+            return 0.5, "moderate_sell"  # Moderate sell signal
         else:
-            return 0.0  # No sell signal
+            return 0.0, "no_sell"  # No sell signal
 
     def calculate_indicators(self, data: pd.DataFrame) -> pd.DataFrame:
         data["RSI"] = self.calculate_rsi(data["close"])

@@ -9,10 +9,21 @@ This project implements an algorithmic trading bot that can perform backtesting 
 │ │ ├── init.py
 │ │ ├── base_strategy.py
 │ │ └── sma_strategy.py
+│ ├── discord.py
+│ ├── market.py
 │ └── trading_bot.py
-├── data/
-│ └── [stock_symbol].csv
+├── database/
+│ ├── init.py
+│ ├── crud.py
+│ └── model.py
+├── models/
+│ ├── market.py
+│ └── trading_bot.py
+├── config/
+│ └── settings.py
+├── backtest.py
 ├── main.py
+├── requirements.txt
 └── README.md
 
 ## Components
@@ -23,9 +34,10 @@ The main class that handles the trading logic, data management, and execution of
 
 Key features:
 
+- Supports both backtesting and live trading modes
 - Loads and manages historical stock data
 - Implements backtesting functionality
-- Supports live trading (placeholder implementation)
+- Supports live trading with real-time order placement
 - Calculates and reports performance metrics
 
 ### BaseStrategy (core/strategy/base_strategy.py)
@@ -49,15 +61,53 @@ Key features:
 - Uses RSI for overbought/oversold conditions
 - Calculates additional indicators like MACD and ATR
 
+### Market (core/market.py)
+
+Handles market-related operations and simulates order placement for live trading.
+
+Key features:
+
+- Checks if the market is open
+- Determines the current market phase
+- Simulates order placement
+
+### Database (database/)
+
+Manages database operations using SQLAlchemy ORM.
+
+Key components:
+
+- `model.py`: Defines database models
+- `crud.py`: Implements CRUD operations
+
+### Config (config/settings.py)
+
+Manages configuration settings using Pydantic.
+
+### Discord (core/discord.py)
+
+Handles sending alerts and messages to Discord.
+
 ## Usage
 
-1. Ensure you have the required data files in the `data/` directory.
-2. Modify the `main.py` file to use the desired strategy and trading mode.
-3. Run the bot using:
+1. Install the required dependencies:
 
-```bash
-python main.py
-```
+   ```
+   pip install -r requirements.txt
+   ```
+
+2. Set up your environment variables in a `.env` file based on the `example.env` file.
+
+3. To run backtesting:
+
+   ```
+   python backtest.py
+   ```
+
+4. To run live trading:
+   ```
+   python main.py
+   ```
 
 ## Extending the Bot
 
@@ -66,12 +116,7 @@ To create a new trading strategy:
 1. Create a new file in the `core/strategy/` directory (e.g., `my_strategy.py`).
 2. Define a new class that inherits from `BaseStrategy`.
 3. Implement the required methods (`signal_buy`, `signal_sell`, `calculate_indicators`, `check_stop_loss`).
-4. Update `main.py` to use your new strategy.
-
-## Dependencies
-
-- pandas
-- numpy (used indirectly by pandas)
+4. Update `backtest.py` or `main.py` to use your new strategy.
 
 ## Future Improvements
 
@@ -79,7 +124,8 @@ To create a new trading strategy:
 - Add more sophisticated strategies
 - Improve risk management features
 - Implement portfolio optimization
-- Add unit tests and integration tests
+- Add more comprehensive unit tests and integration tests
+- Implement logging for better debugging and monitoring
 
 ## Disclaimer
 
