@@ -565,8 +565,7 @@ class TradingBot:
         self._prepare_ohlc_data()
         self._load_historical_data()
         while True:
-            # current_datetime = datetime.now(self._market.bangkok_tz)
-            current_datetime = datetime(2024, 10, 15, 11, 0, 0)
+            current_datetime = datetime.now(self._market.bangkok_tz)
             is_market_open, market_phase = self._market.is_market_open(current_datetime)
             if is_market_open and self._current_market_phase != market_phase:
                 self._current_market_phase = market_phase
