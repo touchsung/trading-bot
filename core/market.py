@@ -11,6 +11,7 @@ class Market:
         self.bangkok_tz = pytz.timezone("Asia/Bangkok")
         self.market_phases = settings.MARKET_PHASES
         self.holidays = settings.MARKET_HOLIDAYS
+        self.commission_rate = 0.001177
 
     def is_market_open(self, current_time: datetime) -> tuple[bool, MarketPhase]:
         phase = self._get_market_phase(current_time)
@@ -44,7 +45,8 @@ class Market:
                 type=place_order.side,
                 price=place_order.price,
                 volume=place_order.volume,
-                commission=(place_order.price * place_order.volume) * 0.001,
+                commission=(place_order.price * place_order.volume)
+                * self.commission_rate,
                 vat=0,
                 wht=0,
                 trade_date=datetime.now().date(),

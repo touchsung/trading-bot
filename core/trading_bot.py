@@ -39,7 +39,7 @@ class TradingBot:
         # Initialize strategy, account, and bot
         self._strategy_info = self._init_strategy()
         self._account_info = self._init_account()
-        self._bot_info = self._init_bot()
+        self._bot_info = self._load_bot_info()
 
     def _init_strategy(self):
         return self._db.get_strategy(strategy_name=self._strategy.name)
@@ -47,7 +47,7 @@ class TradingBot:
     def _init_account(self):
         return self._db.get_account(account_no=self._account)
 
-    def _init_bot(self):
+    def _load_bot_info(self):
         return self._db.get_bot_data(
             account_no=self._account_info.account_no,
             strategy_id=self._strategy_info.strategy_id,
@@ -275,7 +275,7 @@ class TradingBot:
         current_date,
         position_type,
     ):
-        cost = shares_to_buy * current_price
+        cost = shares_to_buy * current_price * (1 + self._market.commission_rate)
         if cost <= self._available_budget:
             if self._trading_mode == TradingMode.Live:
                 # Create a new Signal object
@@ -304,27 +304,26 @@ class TradingBot:
                             new_signal.signal_id, OrderStatus.Open
                         )
 
-                        # Proceed with the buy execution
-                        cost += (
-                            order_result.commission
-                            + order_result.vat
-                            + order_result.wht
-                        )
-                        positions[stock] += shares_to_buy
-                        entry_prices[stock] = current_price
-                        self._available_budget -= cost
-                        volumes[stock] += shares_to_buy
+                        # Proceed with the buy execution using order_result values
+                        positions[stock] += order_result.volume
+                        entry_prices[stock] = order_result.price
+                        volumes[stock] += order_result.volume
                         self._trades[stock].append(
                             (
                                 "buy",
-                                current_date,
-                                shares_to_buy,
-                                current_price,
+                                order_result.trade_date,
+                                order_result.volume,
+                                order_result.price,
                                 position_type,
                             )
                         )
+
+                        # Fetch updated budget from database
+                        self._bot_info = self._load_bot_info()
+                        self._available_budget = self._bot_info.available_budget
+
                         self._alert_log(
-                            f"[BUY]: {stock} at {current_price} volume {shares_to_buy} because {position_type}"
+                            f"[BUY]: {order_result.symbol} at {order_result.price} volume {order_result.volume} because {position_type}"
                         )
                     else:
                         # Update signal status to Rejected
@@ -388,26 +387,24 @@ class TradingBot:
                         )
 
                         # Proceed with the sell execution
-                        revenue = (
-                            (shares_to_sell * current_price)
-                            - order_result.commission
-                            - order_result.vat
-                            - order_result.wht
-                        )
-                        positions[stock] -= shares_to_sell
-                        self._available_budget += revenue
-                        volumes[stock] += shares_to_sell
+                        positions[stock] -= order_result.volume
+                        volumes[stock] += order_result.volume
                         self._trades[stock].append(
                             (
                                 "sell",
-                                current_date,
-                                shares_to_sell,
-                                current_price,
+                                order_result.trade_date,
+                                order_result.volume,
+                                order_result.price,
                                 position_type,
                             )
                         )
+
+                        # Fetch updated budget from database
+                        self._bot_info = self._load_bot_info()
+                        self._available_budget = self._bot_info.available_budget
+
                         self._alert_log(
-                            f"[SELL]: {stock} at {current_price} volume {shares_to_sell} because {position_type}"
+                            f"[SELL]: {order_result.symbol} at {order_result.price} volume {order_result.volume} because {position_type}"
                         )
                     else:
                         # Update signal status to Rejected
