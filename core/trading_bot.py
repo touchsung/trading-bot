@@ -179,26 +179,6 @@ class TradingBot:
         if not self._strategy.is_stock_price_appropriate(current_price):
             return
 
-        if self._strategy.check_stop_loss(
-            stock,
-            current_price,
-            historical_data,
-            positions,
-            entry_prices,
-            volumes,
-            current_date,
-        ):
-            self._execute_sell(
-                stock,
-                current_price,
-                positions,
-                volumes,
-                current_date,
-                positions[stock],
-                "stop_loss",
-            )
-            return
-
         self._process_buy_signal(
             stock,
             historical_data,
@@ -230,7 +210,7 @@ class TradingBot:
         if buy_signal > 0:
             if self._available_budget > 0:
                 shares_to_buy = self._calculate_shares_to_buy(
-                    current_price, buy_signal, self._available_budget
+                    current_price, buy_signal, self._available_budget, stock, positions
                 )
                 if shares_to_buy > 0:
                     self._execute_buy(
@@ -438,65 +418,111 @@ class TradingBot:
             volume=signal.volume,
         )
 
-        trade_result = self._market.place_order(place_order)
-        if trade_result:
-            # Add the trade to the database
-            new_trade = Trade(
-                account_no=trade_result.account_no,
-                order_no=trade_result.order_no,
-                symbol=trade_result.symbol,
-                type=trade_result.type,
-                price=trade_result.price,
-                volume=trade_result.volume,
-                commission=trade_result.commission,
-                vat=trade_result.vat,
-                wht=trade_result.wht,
-                trade_date=trade_result.trade_date,
-                trade_time=trade_result.trade_time,
-                status=trade_result.status,
-            )
-            self._db.add_trade(new_trade)
+        MAX_RETRIES = 3
+        retry_count = 0
 
-            # Create a transaction to link the signal and trade
-            new_transaction = Transaction(
-                trade_id=new_trade.trade_id, signal_id=signal.signal_id
-            )
-            self._db.add_transaction(new_transaction)
+        while retry_count < MAX_RETRIES:
+            trade_result = self._market.place_order(place_order)
+            if trade_result:
+                # Add the trade to the database
+                new_trade = Trade(
+                    account_no=trade_result.account_no,
+                    order_no=trade_result.order_no,
+                    symbol=trade_result.symbol,
+                    type=trade_result.type,
+                    price=trade_result.price,
+                    volume=trade_result.volume,
+                    commission=trade_result.commission,
+                    vat=trade_result.vat,
+                    wht=trade_result.wht,
+                    trade_date=trade_result.trade_date,
+                    trade_time=trade_result.trade_time,
+                    status=trade_result.status,
+                )
+                self._db.add_trade(new_trade)
 
-            # Update the signal status to Matched
-            self._db.update_signal_status(signal.signal_id, OrderStatus.Matched)
+                # Create a transaction to link the signal and trade
+                new_transaction = Transaction(
+                    trade_id=new_trade.trade_id, signal_id=signal.signal_id
+                )
+                self._db.add_transaction(new_transaction)
 
-            # Update Portfolio
-            self._update_portfolio(trade_result)
+                # Update the signal status to Matched
+                self._db.update_signal_status(signal.signal_id, OrderStatus.Matched)
 
-            # Update Bot's budget
-            self._update_bot_budget(trade_result)
+                # Update Bot's budget
+                self._update_bot_budget(trade_result)
 
-            return trade_result
-        else:
-            return None
+                # Update Portfolio
+                self._update_portfolio(trade_result)
+
+                return trade_result
+            else:
+                retry_count += 1
+                if retry_count < MAX_RETRIES:
+                    self._alert_log(
+                        f"Retrying order placement for {signal.symbol} (Attempt {retry_count + 1}/{MAX_RETRIES})"
+                    )
+                    time.sleep(1)  # Add a small delay between retries
+                else:
+                    self._alert_log(
+                        f"Order placement failed after {MAX_RETRIES} attempts for {signal.symbol}"
+                    )
+                    return None
 
     def _update_portfolio(self, trade: Trade):
         portfolio = self._db.get_portfolio(trade.account_no, trade.symbol)
         if portfolio:
             if trade.type == SideType.buy:
+                # Calculate total trading costs
+                total_costs = trade.commission + trade.vat + trade.wht
+
+                # Buy: Update holding volume and average cost (including trading costs)
                 portfolio.holding_volume += trade.volume
+                total_cost_with_fees = (trade.price * trade.volume) + total_costs
                 portfolio.average_cost = (
-                    (portfolio.average_cost * portfolio.holding_volume)
-                    + (trade.price * trade.volume)
-                ) / (portfolio.holding_volume + trade.volume)
+                    (portfolio.average_cost * (portfolio.holding_volume - trade.volume))
+                    + total_cost_with_fees
+                ) / portfolio.holding_volume
+                # Update profit based on unrealized gains/losses
+                portfolio.profit = (
+                    trade.price - portfolio.average_cost
+                ) * portfolio.holding_volume
             else:  # sell
+                # Calculate total trading costs
+                total_costs = trade.commission + trade.vat + trade.wht
+
+                # Calculate realized profit for this sale (including trading costs)
+                realized_profit = (
+                    (trade.price * trade.volume)
+                    - (portfolio.average_cost * trade.volume)
+                    - total_costs
+                )
+                portfolio.profit += realized_profit
+
+                # Update holding volume
                 portfolio.holding_volume -= trade.volume
                 if portfolio.holding_volume == 0:
                     portfolio.average_cost = 0
+                # If still holding shares, update unrealized profit
+                else:
+                    portfolio.profit += (
+                        trade.price - portfolio.average_cost
+                    ) * portfolio.holding_volume
+
             self._db.update_portfolio(portfolio)
         else:
+            # Calculate total trading costs for initial position
+            total_costs = trade.commission + trade.vat + trade.wht
+            initial_total_cost = (trade.price * trade.volume) + total_costs
+            initial_average_cost = initial_total_cost / trade.volume
+
             new_portfolio = Portfolio(
                 account_no=trade.account_no,
                 symbol=trade.symbol,
                 entry_price=trade.price,
                 entry_volume=trade.volume,
-                average_cost=trade.price,
+                average_cost=initial_average_cost,  # Include trading costs in average cost
                 holding_volume=trade.volume,
                 profit=0,  # Initial profit is 0
             )
@@ -506,16 +532,42 @@ class TradingBot:
         total_cost = (
             trade.price * trade.volume + trade.commission + trade.vat + trade.wht
         )
+
         if trade.type == SideType.buy:
             self._bot_info.available_budget -= total_cost
         else:  # sell
+            # Calculate profit/loss for this trade
+            portfolio = self._db.get_portfolio(trade.account_no, trade.symbol)
+            if portfolio:
+                trade_profit = (trade.price - portfolio.average_cost) * trade.volume - (
+                    trade.commission + trade.vat + trade.wht
+                )
+                self._bot_info.total_profit_loss += trade_profit
             self._bot_info.available_budget += total_cost
+
         self._db.update_bot(self._bot_info)
 
     def _calculate_shares_to_buy(
-        self, current_price: float, buy_signal: float, available_budget: float
+        self,
+        current_price: float,
+        buy_signal: float,
+        available_budget: float,
+        stock: str,
+        positions: dict = None,
     ) -> int:
-        max_trade_size = 0.1 * self._initial_budget
+        # Check if we already have a position in this stock
+        if self._trading_mode == TradingMode.Live:
+            portfolio = self._db.get_portfolio(self._account_info.account_no, stock)
+            if portfolio and portfolio.holding_volume > 0:
+                return 0
+        else:  # Backtest mode
+            if positions and positions[stock] > 0:
+                return 0
+
+        num_stocks = len(self._list_stocks)
+        max_trade_size = (
+            0.95 * self._initial_budget
+        ) / num_stocks  # 95% of initial budget per stock
         return min(
             int(max_trade_size / current_price * buy_signal),
             int(available_budget / current_price),
@@ -534,6 +586,7 @@ class TradingBot:
         self._trading_mode = TradingMode.Backtest
         self._prepare_ohlc_data()
         self._load_historical_data()
+        self._initial_budget = self._available_budget = 50000
         # Filter out empty dataframes
         non_empty_dfs = {k: df for k, df in self._dataframes.items() if not df.empty}
 
@@ -585,15 +638,52 @@ class TradingBot:
         winning_trades = 0
 
         for trades in self._trades.values():
-            for i in range(0, len(trades), 2):
-                if i + 1 < len(trades):
-                    buy_trade = trades[i]
-                    sell_trade = trades[i + 1]
+            # Convert all trades to a consistent format
+            normalized_trades = []
+            for trade in trades:
+                if isinstance(trade, dict):
+                    # Convert dictionary format to tuple format
+                    normalized_trades.append(
+                        (
+                            trade["type"],
+                            trade["date"],
+                            trade["volume"],
+                            trade["price"],
+                            "unknown",
+                        )
+                    )
+                else:
+                    # Already in tuple format
+                    normalized_trades.append(trade)
+
+            # Process trades in pairs
+            i = 0
+            while i < len(normalized_trades):
+                current_trade = normalized_trades[i]
+
+                # Find the next sell trade
+                next_sell_index = None
+                for j in range(i + 1, len(normalized_trades)):
+                    if normalized_trades[j][0] == "sell":
+                        next_sell_index = j
+                        break
+
+                if next_sell_index is not None:
+                    buy_trade = current_trade
+                    sell_trade = normalized_trades[next_sell_index]
+
+                    # Calculate profit/loss: (sell_price - buy_price) * volume
                     profit_loss = (sell_trade[3] - buy_trade[3]) * buy_trade[2]
                     total_profit_loss += profit_loss
                     total_trades += 1
                     if profit_loss > 0:
                         winning_trades += 1
+
+                    # Move to the trade after the sell
+                    i = next_sell_index + 1
+                else:
+                    # No matching sell trade found
+                    break
 
         win_rate = (winning_trades / total_trades) * 100 if total_trades > 0 else 0
         roi = (total_profit_loss / self._initial_budget) * 100

@@ -5,8 +5,6 @@ from core.strategy import BaseStrategy
 class SMAStrategy(BaseStrategy):
     def __init__(self):
         super().__init__()
-        self.STOP_LOSS_PERCENTAGE = 0.03
-        self.TAKE_PROFIT_PERCENTAGE = 0.09
         self.name = "SMA"
         self.description = "Simple Moving Average Strategy"
 
@@ -73,17 +71,5 @@ class SMAStrategy(BaseStrategy):
 
     def check_stop_loss(
         self,
-        stock: str,
-        current_price: float,
-        historical_data: pd.DataFrame,
-        positions: dict,
-        entry_prices: dict,
-        volumes: dict,
-        current_date: pd.Timestamp,
     ) -> bool:
-        if positions[stock] > 0:
-            current_atr = historical_data["ATR"].iloc[-1]
-            trailing_stop_loss = entry_prices[stock] - (2 * current_atr)
-            if current_price < trailing_stop_loss:
-                return True
-        return False
+        pass

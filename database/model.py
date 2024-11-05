@@ -71,6 +71,7 @@ class Bot(Base, TimestampMixin):
     trade_symbols = Column(ARRAY(String), nullable=False)
     initial_budget = Column(Float, nullable=False, default=0)
     available_budget = Column(Float, nullable=False, default=0)
+    total_profit_loss = Column(Float, nullable=False, default=0)
 
     account = relationship("Account", back_populates="bots")
     strategy = relationship("Strategy", back_populates="bots")
